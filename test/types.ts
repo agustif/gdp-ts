@@ -261,7 +261,7 @@ function narrow<U, P>(view: CanViewProtection<U, P>) {
 }
 void narrow;
 
-// --- nothing is constructible without an assertion -------------------------
+// --- plain objects cannot construct names or proofs ------------------------
 
 name(projectA, userId, (project, user) => {
   // @ts-expect-error missing the private name brand
@@ -271,6 +271,27 @@ name(projectA, userId, (project, user) => {
   // @ts-expect-error a different kind is a different proof
   const wrongKind: UserIsProjectAdmin<NameOf<typeof user>, NameOf<typeof project>> = UserHasProjectAccess.prove(user, project);
   void forgedName, forgedProof, wrongKind;
+});
+
+// --- object spread cannot replace checked identities or policy kinds -------
+
+name(userId, projectA, projectB, (user, project, other) => {
+  const access = UserHasProjectAccess.prove(user, project);
+  const copied = { ...project };
+  // @ts-expect-error copied wrappers do not retain the original nominal identity
+  readProtection(copied, user, access);
+
+  const substituted = { ...project, value: other.value };
+  // @ts-expect-error a changed value cannot reuse the original scoped name
+  readProtection(substituted, user, access);
+
+  const promoted = { ...access, kind: "UserIsProjectAdmin" } as const;
+  // @ts-expect-error changing a proof's discriminant cannot promote its policy
+  setPasswordProtection(project, "password", { manage: promoted, plan: PlanIncludesPasswordProtection.prove(project) });
+
+  // Unchanged proofs may still carry additional evidence, as documented.
+  const annotated = { ...access, audited: true };
+  readProtection(project, user, annotated);
 });
 
 // --- alternative: type aliases work too, but then use NoInfer --------------

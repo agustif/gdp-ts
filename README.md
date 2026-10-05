@@ -22,6 +22,10 @@ $ pnpm add @gdp-ts/core
 
 Requires TypeScript 5.4 or newer.
 
+Keep the original `Named` wrappers when passing checked values. Object-spread
+copies are rejected; TypeScript's intersection-returning helpers remain a
+[documented limitation](skills/gdp-ts/references/limits.md#preserve-named-wrappers).
+
 ## The problem
 
 A lot of codebases feature code like this:

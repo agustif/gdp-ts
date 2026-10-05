@@ -40,12 +40,16 @@ import { defineProof, name, type Named, type Proof } from "@gdp-ts/core";
 
 const IsShort = defineProof("IsShort");
 interface IsShort<S> extends Proof<"IsShort", [S]> {}
+interface IsLong<S> extends Proof<"IsLong", [S]> {}
 
 function isShort<S>(s: Named<S, string>): IsShort<S> | null {
   return s.value.length < 5 ? IsShort.prove(s) : null;
 }
 function shout<S>(s: Named<S, string>, _proof: IsShort<S>): string {
   return s.value.toUpperCase();
+}
+function whisper<S>(s: Named<S, string>, _proof: IsLong<S>): string {
+  return s.value.toLowerCase();
 }
 
 name("hi", "there", (a, b) => {
@@ -54,6 +58,17 @@ name("hi", "there", (a, b) => {
   shout(a, proof);
   // @ts-expect-error the proof is about `a`, not `b`
   shout(b, proof);
+  const copied = { ...a };
+  // @ts-expect-error an object-spread copy loses the original nominal identity
+  shout(copied, proof);
+  const substituted = { ...a, value: b.value };
+  // @ts-expect-error the checked value cannot be replaced through object spread
+  shout(substituted, proof);
+  const promoted = { ...proof, kind: "IsLong" } as const;
+  // @ts-expect-error changing the discriminant cannot promote a proof's kind
+  whisper(a, promoted);
+  const annotated = { ...proof, checkedLength: a.value.length };
+  shout(a, annotated);
 });
 EOF
 
@@ -67,9 +82,10 @@ EOF
 
 for resolution in "nodenext nodenext" "esnext bundler"; do
   set -- $resolution
-  npx tsc --noEmit --strict --skipLibCheck false --target es2022 --module "$1" --moduleResolution "$2" consumer.ts lint-consumer.ts
+  # Restrict automatic ambient types to this consumer, even beneath a workspace.
+  npx tsc --noEmit --strict --skipLibCheck false --typeRoots ./node_modules/@types --target es2022 --module "$1" --moduleResolution "$2" consumer.ts lint-consumer.ts
   echo "types: ok (TypeScript $(npx tsc --version | cut -d' ' -f2), module $1, moduleResolution $2)"
 done
 # node10 predates "exports", so only the main entry point exists there.
-npx tsc --noEmit --strict --skipLibCheck false --target es2022 --module commonjs --moduleResolution node10 consumer.ts
+npx tsc --noEmit --strict --skipLibCheck false --typeRoots ./node_modules/@types --target es2022 --module commonjs --moduleResolution node10 consumer.ts
 echo "types: ok (TypeScript $(npx tsc --version | cut -d' ' -f2), module commonjs, moduleResolution node10, main entry only)"

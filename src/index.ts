@@ -21,13 +21,23 @@
  *    cannot be called with a proof about a different project or user, with a
  *    raw id, or with no proof at all.
  *
- * Nothing here is a theorem prover. The guarantee is practical: the honest path
- * never needs a type assertion, so forging a proof requires `as`/`any`, which
- * you can lint for and which stands out in review.
+ * Nothing here is a theorem prover. The intended path never needs a type
+ * assertion. Preserve the original named wrappers: TypeScript helpers with
+ * intersection return types can retain phantom identity while replacing a
+ * value. See the documented limits before relying on these signatures.
  */
 
 declare const NAME: unique symbol;
 declare const ABOUT: unique symbol;
+declare const KIND: unique symbol;
+
+/**
+ * A nominal marker which is erased at runtime. Object spread omits private
+ * members, so a copied wrapper cannot claim the original value's name.
+ */
+declare class NamedIdentity {
+  private readonly namedIdentity: void;
+}
 
 /**
  * A value of type `A` tagged with a compile-time-only name `N`.
@@ -36,10 +46,10 @@ declare const ABOUT: unique symbol;
  * cannot stand in for a `Named<N, A>`. `A` is covariant, so widening the
  * value type is fine; proofs are about the name, not the value type.
  *
- * Read the underlying value with `.value`. There is no way to construct a
- * `Named` except through {@link name} (or a type assertion).
+ * Read the underlying value with `.value`. Keep the original wrapper: an
+ * object-spread copy loses its nominal identity, even if `.value` is unchanged.
  */
-export interface Named<in out N, out A> {
+export interface Named<in out N, out A> extends NamedIdentity {
   readonly value: A;
   // Phantom. `(n: N) => N` makes the *structure* invariant in N too, not just
   // the annotation: TypeScript falls back to structural comparison in some
@@ -111,6 +121,9 @@ export function name(...args: unknown[]): unknown {
  */
 export interface Proof<in out Kind extends string, in out About extends readonly unknown[]> {
   readonly kind: Kind;
+  // Keep the kind structurally invariant too: changing only `kind` on a
+  // spread proof must not promote it to a different policy's evidence.
+  readonly [KIND]: (kind: Kind) => Kind;
   // Phantom, structurally invariant for the same reason as `Named[NAME]`.
   readonly [ABOUT]: (about: About) => About;
 }
